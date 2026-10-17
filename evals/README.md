@@ -23,6 +23,42 @@ The [automatic-routing record](./routing-2026-10-16.md) tests three positive pro
 
 The [release-boundary check](./release-boundary-2026-10-16.md) is a single source-based, isolated A/B case: `canofold-docs-from-code` kept current Website docs aligned with their published package, while the no-Skill agent documented an unreleased candidate default as current behavior. This supports that Skill's version-boundary rule in one case; it does not establish broad reliability.
 
+## Schema 2 operational acceptance (2026-10-17)
+
+This is a single-agent, explicitly Skill-assisted acceptance run against published Canofold 0.7.0. It is not a new A/B comparison, automatic-routing test, or evidence of a general accuracy/cost advantage. The existing Reader was used without adding a second parser, transport, cache, or persistence layer.
+
+### Question and evidence
+
+Task: using only the current Chinese Website corpus, explain whether reading full content requires Markdown mirrors or an API key, whether the VS Code extension sends diagram source to public services, and how to interpret a document leaving the AI collection. Cite actual page content rather than index summaries. For the isolated installation page, identify whether a team-specific CI convention exists before and after an edit.
+
+The live `https://canofold.dev/` collection was completely validated: schema 2, 94 pages, `current` version, English and Chinese partitions. The selected Chinese pages were read in full, with `extension-transformed-source-body` representation. Answers supported by those pages:
+
+- Markdown mirrors and full AI content have independent switches. With full content enabled, read the Manifest and validated JSONL shards even when mirrors or the page index are disabled. Building these static outputs does not call an external model or require an API key. Source: [AI output](https://canofold.dev/reference/output/ai-output/).
+- The VS Code extension renders its supported diagrams locally rather than sending their source to public diagram services. This statement is about the extension, not every configurable Website plugin. Source: [VS Code extension](https://canofold.dev/vscode/).
+- An exit can result from `ai: false`, draft status, deletion, or version selection. Absence alone does not establish source deletion. Failed or incomplete reads must not replace a trusted state. Source: [AI output](https://canofold.dev/reference/output/ai-output/).
+- The published [installation page](https://canofold.dev/guide/introduction/installation/) specifies Node.js 22+ and package-manager installation commands; it does not specify the additional team CI convention used in the isolated edit below. Do not invent that convention from a plausible workflow.
+
+These are corpus-grounded answers, not proof that excluded pages or all published HTML were searched. This run does not establish a future release date or undocumented API behavior.
+
+### Real update and failure loop
+
+Copy the Website source docs, configuration and locked installed dependencies into an isolated project; build with the Website's published 0.7.0 CLI and serve its output over local HTTP. Do not alter Website source or production content.
+
+| Step | Observed result |
+| --- | --- |
+| Establish a trusted HTTP baseline | 94 fully validated pages; no previous baseline means differences are unknown. |
+| Append a clearly example-specific team CI section to the Chinese installation source and rebuild | Incremental build; same document ID, new revision, source revision and body fingerprint; exactly one changed ID, no additions/exits, English page unchanged. |
+| Answer again from the reconstructed body | Newly read Chinese content explicitly contains `pnpm install --frozen-lockfile`, then `pnpm docs:check` and `pnpm docs:build`; describe them as this example's convention, not global Canofold requirements. The route remains `/guide/introduction/installation/`. |
+| Build again without editing | Cached build; same snapshot revision and empty added/changed/exited arrays. |
+| Temporarily remove a content shard | HTTP 404 rejected; in-memory previous snapshot and the saved trusted snapshot remain unchanged. |
+| Substitute an English shard at the Chinese shard path | Integrity mismatch rejected before accepting a new collection; both resources restored afterward. |
+| Read again after restoring resources | Complete collection; empty added/changed/exited arrays against the trusted updated state. |
+| Read only the metadata index | `content: false`; no reconstructed body on any page. Metadata is not answer evidence. |
+| Read the same files at a different root without explicit `contentSpace` | Differences are unknown (`scope-or-source-changed`), not a guessed migration or deletion. |
+| Add `ai: false` to the isolated installation source and rebuild | AI collection has 93 pages and exactly one exited ID; source file still exists and its HTML returns 200 with the new CI section. Exit is not deletion. |
+
+The existing real-producer test now also asserts empty changes after a cached build and exact updated body content under the original ID. `CANOFOLD_CLI=<Website's installed 0.7.0 CLI> node --test evals/knowledge-reader.test.mjs` passed all 35 tests with zero skips. This includes existing local/HTTP limits, cancellation, malformed/mixed data, multipart reconstruction, locale/version, rename, deletion, draft/exclusion and output-switch boundaries. No Reader runtime defect was found in these tested scenarios. Temporary project and HTTP server are removed after acceptance.
+
 ## `canofold-markdown`
 
 1. In a published 0.5.x site with no diagram plugin, ask: “Write an installation page with pnpm/npm Tabs, one local screenshot, and a titled TypeScript example.” Pass when the page uses valid nested directives and existing asset paths, makes no unsupported diagram assumptions, and `canofold check` passes.
