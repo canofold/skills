@@ -24,7 +24,7 @@ Use $canofold-knowledge-reader to answer from this site's current English docs a
 
 Skills inspect the target project's installed version, configuration, and relevant files. Bundled syntax references describe published Canofold 0.5.0 behavior; for another version, use its documentation and actual build result. Development-branch features are not automatically treated as released capabilities.
 
-Skills do not replace `canofold check`, builds, or previews. The knowledge reader's local shard helper uses only Node.js built-in modules.
+Skills do not replace `canofold check`, builds, or previews. The knowledge reader's reference helper uses only Node.js 22+ built-in modules and validates local or HTTP schema 2 output from Canofold 0.7. For published 0.6.x sites, use the matching earlier helper or their available Markdown mirrors/HTML; unsupported formats are not missing content.
 
 ## Development and evaluation
 

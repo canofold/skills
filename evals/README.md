@@ -43,3 +43,5 @@ The [release-boundary check](./release-boundary-2026-10-16.md) is a single sourc
 4. Negative trigger: ask to edit source docs. Prefer the writing or maintenance Skill.
 
 Run the local content helper tests with `node --test evals/knowledge-reader.test.mjs`. To verify the published Markdown syntax and rendered output against an installed Canofold package, run `node evals/markdown-site-smoke.mjs <project-with-canofold-installed>`. The latter creates and removes an isolated temporary site.
+
+For the schema 2 Reader, run the real-producer suite against an explicitly chosen 0.7 CLI: `CANOFOLD_CLI=/absolute/path/to/canofold/dist/cli.js node --test evals/knowledge-reader.test.mjs`. Without this variable the real-producer case is skipped, so fixture tests alone do not establish producer compatibility. The suite uses isolated local/HTTP fixtures and checks updates, rename, deletion, draft/AI exclusion, locale/version partitions, disabled outputs and rejected incomplete data. The helper intentionally rejects schema 1; use a matching reader or mirrors/HTML for published 0.6.x sites.

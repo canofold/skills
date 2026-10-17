@@ -24,7 +24,7 @@
 
 每款 Skill 先读取项目实际安装的版本、配置和相关文件。仓库内的语法参考以已发布的 Canofold 0.5.0 为基线；项目版本不同时，应以该版本的公开文档与实际构建结果为准。开发分支上的功能不自动视为已发布能力。
 
-Skills 不代替 `canofold check`、构建和真实预览。知识读取 Skill 的本地分片读取脚本只使用 Node.js 内置模块。
+Skills 不代替 `canofold check`、构建和真实预览。知识读取 Skill 的参考脚本只使用 Node.js 22+ 内置模块，校验 Canofold 0.7 的本地或 HTTP schema 2 产物。已发布的 0.6.x 站点应使用配套旧版脚本，或读取可用的 Markdown Mirror/HTML；不支持的格式不代表内容不存在。
 
 ## 开发与评估
 
