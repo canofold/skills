@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { promisify } from 'node:util'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { readCollection } from '../skills/canofold-knowledge-reader/scripts/read-page.mjs'
 
 const exec = promisify(execFile)
@@ -45,7 +45,7 @@ async function fixture(root) {
     status: 'published'
   }
   const envelope = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     scope: { space: 'test-site', versions: ['current'], locales: ['zh'] },
     basePath: '/base/',
     outputs: { aiPageIndex: true, aiFullContent: true, markdownMirror: false },
@@ -117,6 +117,42 @@ test('metadata indexes cannot supply unverified body content', () =>
     assert.equal(result.content, false)
     assert.equal(result.pages[0].content, undefined)
     await assert.rejects(exec(process.execPath, [helper, root, '/base/guide/', '--index']), /unavailable/)
+  }))
+
+test('accepts source-derived facts and rejects invalid provenance without requiring authored-source fields', () =>
+  withFixture(async (root) => {
+    const indexPath = join(root, 'ai/pages.json')
+    const index = JSON.parse(await readFile(indexPath, 'utf8'))
+    const page = index.pages[0]
+    page.source = {
+      kind: 'openapi', path: 'docs/api/spec.yaml', id: 'pet-api', key: 'GET /pets',
+      pointer: '/paths/~1pets/get', revision: hash('spec'), adapterRevision: '1',
+      optionsRevision: hash('options'), dependenciesRevision: hash('dependencies'),
+      dependencies: [{ path: 'docs/api/spec.yaml', revision: hash('spec') }]
+    }
+    page.representation = { ...page.representation, body: 'source-derived-markdown',
+      facts: 'source-derived-static', analysis: 'openapi-static' }
+    page.derived = { method: 'GET', path: '/pets', security: [] }
+    await writeFile(indexPath, json(index))
+    const read = () => readCollection(root, { entry: 'pages' })
+    assert.deepEqual((await read()).pages[0].derived, page.derived)
+    for (const mutate of [
+      (p) => { p.source.pointer = '/paths/~invalid' },
+      (p) => { p.source.id = 'Bad Identity' },
+      (p) => { p.source.dependencies.push(p.source.dependencies[0]) },
+      (p) => { p.source.dependencies[0].path = '../outside.yaml' },
+      (p) => { p.source.dependencies[0].revision = hash('other') },
+      (p) => { delete p.derived }
+    ]) {
+      const changed = structuredClone(index)
+      mutate(changed.pages[0])
+      await writeFile(indexPath, json(changed))
+      await assert.rejects(read())
+    }
+    for (const schemaVersion of [1, 2]) {
+      await writeFile(indexPath, json({ ...index, schemaVersion }))
+      await assert.rejects(read(), /Unsupported AI schema/)
+    }
   }))
 
 test('rejects scheme-relative citations instead of returning cross-origin page links', () =>
@@ -522,6 +558,68 @@ test('reads HTTP subpath deployments and rejects failed, redirected, mixed or ov
   }))
 
 test(
+  'consumes real OpenAPI-derived bodies, tracks dependencies and retains identity across entry renames',
+  { skip: !process.env.CANOFOLD_CLI || !process.env.CANOFOLD_OPENAPI_ENTRY },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), 'canofold-reader-openapi-'))
+    try {
+      await mkdir(join(root, 'docs/api'), { recursive: true })
+      await writeFile(join(root, 'docs/index.md'), '# Home')
+      const specification = { openapi: '3.1.0', info: {title: 'Pet API', version: '2'}, paths: {
+        '/pets': { get: { responses: { '200': {description: 'OK', content: {
+          'application/json': { schema: {$ref: './pet.yaml'} }
+        }} } } }
+      } }
+      const writeSpec = (name) => writeFile(join(root, `docs/api/${name}.json`), json(specification))
+      const configure = (name) => writeFile(join(root, 'canofold.config.mjs'),
+        `const {openapi} = await import(new URL(${json(pathToFileURL(resolve(process.env.CANOFOLD_OPENAPI_ENTRY)).href)}).href);
+        export default {ai:{contentSpace:'api-reader'}, sources:[openapi({id:'pets',root:'docs/api',
+          entry:'docs/api/${name}.json',locale:'zh',version:'current',base:'/api/'})]}`)
+      const build = () => exec(process.execPath, [resolve(process.env.CANOFOLD_CLI), 'build'], { cwd: root })
+      const dist = join(root, '.canofold/dist')
+      await writeSpec('spec')
+      await configure('spec')
+      await writeFile(join(root, 'docs/api/pet.yaml'), 'type: object\nproperties:\n  name:\n    type: string\n')
+      await build()
+      const first = await readCollection(dist)
+      const operation = first.pages.find((page) => page.source.key === 'GET /pets')
+      assert.ok(operation)
+      assert.equal(operation.representation.body, 'source-derived-markdown')
+      assert.match(operation.content, /GET.*pets/)
+      assert.equal(operation.derived.schemas[0].schema.properties.name.type, 'string')
+      await writeFile(join(root, 'docs/api/pet.yaml'), 'type: object\nproperties:\n  name:\n    type: integer\n')
+      await build()
+      const changed = await readCollection(dist, {previous:first})
+      const updated = changed.pages.find((page) => page.id === operation.id)
+      assert.equal(updated.source.revision, operation.source.revision)
+      assert.notEqual(updated.source.dependenciesRevision, operation.source.dependenciesRevision)
+      assert.equal(updated.derived.schemas[0].schema.properties.name.type, 'integer')
+      assert.match(updated.content, /integer/)
+      assert.ok(changed.changes.changed.includes(operation.id))
+      await rename(join(root,'docs/api/spec.json'),join(root,'docs/api/renamed.json'))
+      await configure('renamed')
+      await build()
+      const moved = await readCollection(dist, {previous:changed})
+      assert.equal(moved.pages.find((page) => page.id === operation.id).source.path, 'docs/api/renamed.json')
+      assert.deepEqual(moved.changes.added, [])
+      assert.deepEqual(moved.changes.exited, [])
+      await rm(join(root,'docs/api/pet.yaml'))
+      await assert.rejects(build())
+      assert.equal((await readCollection(dist)).snapshotRevision, moved.snapshotRevision)
+      await writeFile(join(root,'docs/api/pet.yaml'),'type: string\n')
+      specification.paths = {}
+      await writeSpec('renamed')
+      await build()
+      const removed = await readCollection(dist,{previous:moved})
+      assert.deepEqual(removed.changes.exited, [operation.id])
+      await assert.rejects(readCollection(dist,{previous:{...moved,schemaVersion:2}}), /Unsupported AI schema/)
+    } finally {
+      await rm(root, {recursive:true,force:true})
+    }
+  }
+)
+
+test(
   'consumes real CLI builds through content updates, rename, deletion, locale/version and output switches',
   { skip: !process.env.CANOFOLD_CLI },
   async () => {
@@ -540,13 +638,10 @@ test(
           chunkSizeBytes: 16384
         },
         i18n: { defaultLocale: 'zh', locales: ['zh', 'en'] },
-        versions: {
-          current: 'current',
-          items: [
+        versions: [
             { id: 'current', label: 'Current', docsDir: 'docs', base: '/' },
             { id: 'v1', label: 'v1', docsDir: 'versions/v1', base: '/v1/' }
-          ]
-        }
+        ]
       }
       const configFile = join(root, 'canofold.config.ts')
       await writeFile(configFile, `export default ${json(config)}`)

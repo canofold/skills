@@ -167,8 +167,8 @@ function resourcePath(value, basePath, prefix) {
 
 function validateCollection(value) {
   requireValue(
-    value?.schemaVersion === 2,
-    `Unsupported AI schema: ${value?.schemaVersion}; use a schema 2 producer`
+    value?.schemaVersion === 3,
+    `Unsupported AI schema: ${value?.schemaVersion}; use a schema 3 producer and rebuild the baseline`
   )
   digest(value.snapshotRevision, 'snapshotRevision')
   decodedPath(value.basePath)
@@ -204,7 +204,6 @@ function validateCollection(value) {
     digest(page.id, 'document id')
     digest(page.revision, 'document revision')
     digest(page.source?.revision, 'source revision')
-    digest(page.source?.transformedRevision, 'transformed revision')
     digest(page.representation?.fingerprint, 'body fingerprint')
     digest(page.representation?.declaredInputsRevision, 'declared input revision')
     requireValue(!ids.has(page.id) && !routes.has(page.routePath), 'Duplicate document identity or route')
@@ -231,13 +230,43 @@ function validateCollection(value) {
         !page.source.path.includes('\\'),
       'Invalid logical source path'
     )
+    const authored = ['markdown', 'mdx'].includes(page.source.kind)
+    const derived = page.source.kind === 'openapi'
+    if (authored) digest(page.source.transformedRevision, 'transformed revision')
     requireValue(
-      ['markdown', 'mdx'].includes(page.source.kind) &&
+      (authored &&
         page.representation.body === 'extension-transformed-source-body' &&
         page.representation.facts === 'compiled-static-with-author-and-extension-overrides' &&
-        page.representation.analysis === (page.source.kind === 'mdx' ? 'mdx-static-only' : 'markdown-static'),
+        page.representation.analysis === (page.source.kind === 'mdx' ? 'mdx-static-only' : 'markdown-static')) ||
+      (derived && page.representation.body === 'source-derived-markdown' &&
+        page.representation.facts === 'source-derived-static' &&
+        page.representation.analysis === 'openapi-static'),
       'Unsupported content representation'
     )
+    if (derived) {
+      requireValue(typeof page.source.id === 'string' && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(page.source.id), 'Invalid source identity')
+      requireValue(typeof page.source.key === 'string' && page.source.key.length > 0, 'Invalid local document identity')
+      requireValue(typeof page.source.pointer === 'string' &&
+        (page.source.pointer === '' || /^\/(?:[^~]|~[01])*$/.test(page.source.pointer)), 'Invalid source pointer')
+      requireValue(typeof page.source.adapterRevision === 'string' && page.source.adapterRevision.length > 0, 'Invalid adapter revision')
+      digest(page.source.optionsRevision, 'source options revision')
+      digest(page.source.dependenciesRevision, 'source dependencies revision')
+      const dependencies = array(page.source.dependencies, 'source dependencies')
+      const paths = new Set()
+      requireValue(dependencies.length > 0 && dependencies.length <= 512, 'Invalid source dependency count')
+      for (const dependency of dependencies) {
+        requireValue(typeof dependency.path === 'string' && dependency.path.length > 0 &&
+          !dependency.path.startsWith('/') && !dependency.path.includes('\\') &&
+          !/[\u0000-\u001f]/.test(dependency.path) &&
+          dependency.path.split('/').every((part) => part && part !== '.' && part !== '..') &&
+          !paths.has(dependency.path), 'Invalid source dependency path')
+        paths.add(dependency.path)
+        digest(dependency.revision, 'dependency revision')
+      }
+      requireValue(paths.has(page.source.path), 'Source entry missing from dependencies')
+      requireValue(dependencies.find((dependency) => dependency.path === page.source.path).revision === page.source.revision, 'Source entry revision mismatch')
+      requireValue(page.derived && typeof page.derived === 'object' && !Array.isArray(page.derived), 'Missing derived facts')
+    }
   }
   return value
 }
@@ -413,7 +442,7 @@ export async function readCollection(location, options = {}) {
     )
   }
   const snapshot = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     source: loader.source,
     scope: data.scope,
     outputs: data.outputs,
