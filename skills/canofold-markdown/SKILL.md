@@ -10,7 +10,7 @@ Write content that matches the target project's Canofold version and configurati
 ## Before writing
 
 1. Identify whether the user is authoring a Canofold site page or Markdown passed to `@canofold/markdown`. Inspect `package.json`, `canofold.config.*` when present, nearby pages, and the project's docs root, locale, and version layout.
-2. Use the installed version's documentation and existing project conventions as the authority. In a standalone React renderer, inspect `<Markdown options>` rather than assuming a site configuration exists. The bundled references describe the published 0.5.0 behavior; check newer or older versions before applying version-specific syntax.
+2. Use the installed version's documentation and existing project conventions as the authority. In a standalone React renderer, inspect `<Markdown options>` rather than assuming a site configuration exists; MDX needs the server's `renderMdx()`, not raw MDX passed to `<Markdown>`. The bundled references target published 0.8.2; check another installed version before applying version-specific syntax. Canofold 0.8 requires Node.js 22.12 or newer.
 3. Read [site content conventions](references/site-content.md) for pages, frontmatter, routes, assets, MDX, or demos. Read [rich syntax](references/rich-syntax.md) only when the task needs directives, code annotations, media, or plugin syntax.
 
 ## Authoring decisions
@@ -20,6 +20,7 @@ Write content that matches the target project's Canofold version and configurati
 - Use `::demo` for a runnable component example when a configured Demo engine and a real local demo source exist. Use trusted MDX only when ordinary Markdown and demos cannot express the requested content.
 - Use math, diagrams, or other plugin-owned syntax only after confirming the plugin is configured. Do not add a plugin or dependency merely to decorate a page.
 - Ground API claims, commands, and code examples in the project's source or user-provided facts. Do not convert a plausible example into a claim about implemented behavior.
+- For API specifications, use the project's configured build-time OpenAPI source instead of copying generated endpoint tables into authored Markdown. Keep authored guidance separate from derived references.
 
 ## Finish
 

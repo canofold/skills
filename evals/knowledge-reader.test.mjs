@@ -136,7 +136,15 @@ test('accepts source-derived facts and rejects invalid provenance without requir
     await writeFile(indexPath, json(index))
     const read = () => readCollection(root, { entry: 'pages' })
     assert.deepEqual((await read()).pages[0].derived, page.derived)
+    const custom = structuredClone(index)
+    custom.pages[0].source.kind = 'service-catalog'
+    custom.pages[0].representation.analysis = 'service-catalog-static'
+    custom.pages[0].derived = { service: 'billing' }
+    await writeFile(indexPath, json(custom))
+    assert.deepEqual((await read()).pages[0].derived, { service: 'billing' })
     for (const mutate of [
+      (p) => { p.source.kind = 'Bad Kind' },
+      (p) => { p.representation.analysis = 'other-static' },
       (p) => { p.source.pointer = '/paths/~invalid' },
       (p) => { p.source.id = 'Bad Identity' },
       (p) => { p.source.dependencies.push(p.source.dependencies[0]) },
@@ -154,6 +162,40 @@ test('accepts source-derived facts and rejects invalid provenance without requir
       await assert.rejects(read(), /Unsupported AI schema/)
     }
   }))
+
+test(
+  'consumes a published CLI custom ContentSource without interpreting its opaque facts',
+  { skip: !process.env.CANOFOLD_CLI },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), 'canofold-reader-custom-'))
+    try {
+      await mkdir(join(root, 'docs/catalog'), { recursive: true })
+      await writeFile(join(root, 'docs/index.md'), '# Home')
+      await writeFile(join(root, 'docs/catalog/service.txt'), 'Billing service')
+      await writeFile(join(root, 'canofold.config.mjs'), `export default {
+        sources: [{ id: 'services', kind: 'service-catalog', revision: '1',
+          root: 'docs/catalog', entry: 'docs/catalog/service.txt',
+          version: 'current', locale: 'zh', base: '/catalog/', cacheKey: {},
+          async load(context) {
+            const name = await context.read(context.entry)
+            return [{ key: 'billing', path: '', pointer: '', title: name,
+              description: 'Service ownership', body: '# ' + name,
+              facts: { owner: 'accounts-team' } }]
+          }
+        }]
+      }`)
+      await exec(process.execPath, [resolve(process.env.CANOFOLD_CLI), 'build'], { cwd: root })
+      const result = await readCollection(join(root, '.canofold/dist'))
+      const page = result.pages.find((page) => page.source.kind === 'service-catalog')
+      assert.equal(page.content, '# Billing service')
+      assert.equal(page.representation.analysis, 'service-catalog-static')
+      assert.deepEqual(page.derived, { owner: 'accounts-team' })
+      assert.equal(page.routePath, '/catalog/')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+)
 
 test('rejects scheme-relative citations instead of returning cross-origin page links', () =>
   withFixture(async (root) => {
