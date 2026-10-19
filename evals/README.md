@@ -15,6 +15,8 @@ The Markdown smoke verifies generated structures, direct-array version configura
 
 The [0.8.2 real-project record](acceptance-0.8.2.md) covers authoring, code-change documentation and Reader usage in an isolated Website copy. The dated records below are historical evidence, not current compatibility guarantees or new automatic-selection/A/B results.
 
+The [installed-Skill routing record](routing-installed-2026-10-19.md) verifies user-level installation, three implicit positive requests and four adjacent negative requests against real project copies, with tool traces and browser checks. It is a targeted smoke test, not a reliability or benefit estimate.
+
 The [2026-10-16 Playground A/B record](./playground-2026-10-16.md) contains real-project control and Skill-assisted runs for all three experimental Skills.
 
 Run these as realistic tasks in an isolated Canofold project. Inspect the resulting files and command output; a plausible answer alone is not a pass.
