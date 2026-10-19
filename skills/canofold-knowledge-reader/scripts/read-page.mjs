@@ -231,7 +231,9 @@ function validateCollection(value) {
       'Invalid logical source path'
     )
     const authored = ['markdown', 'mdx'].includes(page.source.kind)
-    const derived = page.source.kind === 'openapi'
+    const derived =
+      !authored && typeof page.source.kind === 'string' &&
+      /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(page.source.kind)
     if (authored) digest(page.source.transformedRevision, 'transformed revision')
     requireValue(
       (authored &&
@@ -240,7 +242,7 @@ function validateCollection(value) {
         page.representation.analysis === (page.source.kind === 'mdx' ? 'mdx-static-only' : 'markdown-static')) ||
       (derived && page.representation.body === 'source-derived-markdown' &&
         page.representation.facts === 'source-derived-static' &&
-        page.representation.analysis === 'openapi-static'),
+        page.representation.analysis === `${page.source.kind}-static`),
       'Unsupported content representation'
     )
     if (derived) {

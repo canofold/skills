@@ -1,5 +1,20 @@
 # Skill evaluation scenarios
 
+## Current acceptance baseline
+
+The maintained Skills target published Canofold 0.8.2. Run with Node.js 22.12+ for producer acceptance; the independent Reader alone requires Node.js 22+. Use installed, matching npm packages rather than a development branch:
+
+```sh
+node evals/markdown-site-smoke.mjs /absolute/path/to/project
+CANOFOLD_CLI=/absolute/path/to/project/node_modules/canofold/dist/cli.js \
+CANOFOLD_OPENAPI_ENTRY=/absolute/path/to/project/node_modules/@canofold/plugins/dist/openapi.js \
+node --test evals/knowledge-reader.test.mjs
+```
+
+The Markdown smoke verifies generated structures, direct-array version configuration and independent historical content/assets after a real `snapshot`. Reader tests verify transport/integrity boundaries and real Markdown, OpenAPI and custom `ContentSource` producers. Without the producer environment variables, their integration cases are skipped; a fixture-only pass is not producer acceptance.
+
+The [0.8.2 real-project record](acceptance-0.8.2.md) covers authoring, code-change documentation and Reader usage in an isolated Website copy. The dated records below are historical evidence, not current compatibility guarantees or new automatic-selection/A/B results.
+
 The [2026-10-16 Playground A/B record](./playground-2026-10-16.md) contains real-project control and Skill-assisted runs for all three experimental Skills.
 
 Run these as realistic tasks in an isolated Canofold project. Inspect the resulting files and command output; a plausible answer alone is not a pass.
@@ -8,7 +23,7 @@ For each Skill, validate the format, run any deterministic script tests, and the
 
 Test routing separately. Install the Skill in an agent discovery directory and issue positive and negative prompts without naming it. Explicit `$skill-name` runs test the instructions, not automatic selection. Revise descriptions when the Skill is missed or selected for unrelated work.
 
-## Current evidence (2026-10-11)
+## Historical evidence (2026-10-11)
 
 - `canofold-markdown`: In two identical Canofold 0.5.0 component sites, both the no-Skill agent and the Skill-assisted agent added a `::demo` pointing to the existing Button demo. Both passed `canofold check` and build. This case shows no measurable correctness gain from the Skill.
 - `canofold-knowledge-reader`: With only the Website's `ai/` output and no Markdown mirrors, both agents located the current English and Chinese installation pages, extracted the same Node.js requirement and package-manager commands, and cited the correct routes. This case shows no correctness gain; the bundled helper remains a deterministic way to reconstruct exact pages and has four passing unit tests.
@@ -61,7 +76,7 @@ The existing real-producer test now also asserts empty changes after a cached bu
 
 ## `canofold-markdown`
 
-1. In a published 0.5.x site with no diagram plugin, ask: “Write an installation page with pnpm/npm Tabs, one local screenshot, and a titled TypeScript example.” Pass when the page uses valid nested directives and existing asset paths, makes no unsupported diagram assumptions, and `canofold check` passes.
+1. In a published 0.8.2 site with no diagram plugin, ask: “Write an installation page with pnpm/npm Tabs, one local screenshot, and a titled TypeScript example.” Pass when the page uses valid nested directives and existing asset paths, makes no unsupported diagram assumptions, and `canofold check` passes.
 2. In a Vite component project, ask for a live Button example. Pass when the agent checks `demos.engine`, references an actual local default-exported demo through `::demo`, and verifies the render path.
 3. Negative trigger: ask to edit a generic repository README unrelated to Canofold. The Skill should not be selected merely because the file is Markdown.
 
@@ -70,6 +85,7 @@ The existing real-producer test now also asserts empty changes after a cached bu
 1. Change a public option's name in implementation, types, and tests, leaving docs unchanged. Ask the agent to synchronize docs. Pass when it finds all relevant examples and source-language pages, bases claims on code, and reports translation follow-up without blindly changing `translation.sourceHash`.
 2. Put a feature only on an unreleased Core branch while Website still consumes published packages. Ask for an update to the public Website. Pass when the agent detects that version boundary and does not present the feature as released without an explicit release task.
 3. Negative trigger: ask for an unrelated new article with no code change. Prefer `canofold-markdown`.
+4. Keep a historical version alongside current docs, then change a component API used by current examples. Pass when the real Demo, current-language pages and executable examples match the change, while historical files and their meaning remain unchanged.
 
 ## `canofold-knowledge-reader`
 
@@ -80,7 +96,7 @@ The existing real-producer test now also asserts empty changes after a cached bu
 
 Run the local content helper tests with `node --test evals/knowledge-reader.test.mjs`. To verify the published Markdown syntax and rendered output against an installed Canofold package, run `node evals/markdown-site-smoke.mjs <project-with-canofold-installed>`. The latter creates and removes an isolated temporary site.
 
-For the current schema 3 Reader, run the real-producer suite against an explicitly chosen 0.8 CLI: `CANOFOLD_CLI=/absolute/path/to/canofold/dist/cli.js CANOFOLD_OPENAPI_ENTRY=/absolute/path/to/plugins/dist/openapi.js node --test evals/knowledge-reader.test.mjs`. Without these variables the respective real-producer cases are skipped, so fixture tests alone do not establish producer compatibility. The suite uses isolated local/HTTP fixtures and checks updates, rename, deletion, draft/AI exclusion, locale/version partitions, disabled outputs and rejected incomplete data. The helper intentionally rejects schema 1/2; use a matching earlier reader or available mirrors/HTML for older sites. The 0.7 acceptance record above describes the earlier tool and does not certify the current schema 3 implementation.
+The suite uses isolated local/HTTP fixtures and checks updates, rename, deletion, draft/AI exclusion, locale/version partitions, disabled outputs and rejected incomplete data. The helper intentionally rejects schema 1/2; use a matching earlier reader or available mirrors/HTML for older sites. The 0.7 acceptance record above describes the earlier tool and does not certify the current schema 3 implementation.
 
 ## Schema 3 acceptance (2026-10-18, local 0.8 candidate)
 

@@ -58,9 +58,12 @@ export default defineConfig({ title: 'Docs' })
     await writeFile(join(root, 'docs/guide/images/install.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60"/>\n')
 
     const cli = resolve(consumer, 'node_modules/.bin/canofold')
-    for (const args of [['check'], ['build', '--no-cache']]) {
+    const run = (args) => {
       const result = spawnSync(cli, args, { cwd: root, encoding: 'utf8' })
       assert.equal(result.status, 0, `${args.join(' ')} failed:\n${result.stdout}\n${result.stderr}`)
+    }
+    for (const args of [['check'], ['build', '--no-cache']]) {
+      run(args)
     }
 
     const html = await readFile(join(root, '.canofold/dist/guide/install/index.html'), 'utf8')
@@ -70,7 +73,31 @@ export default defineConfig({ title: 'Docs' })
     assert.match(html, /data-cf-component="code-block"/)
     assert.match(html, /class="line highlighted"/)
     await readFile(join(root, '.canofold/dist/guide/install/images/install.svg'))
-    console.log('PASS: check, clean build, and rendered Tabs/image/highlighted code block')
+    assert.doesNotMatch(html, /aria-label="文档版本"/)
+
+    // Snapshot actual content before changing the current release, not a version label alone.
+    run(['snapshot', 'v1'])
+    const original = await readFile(join(root, 'docs/guide/install.md'), 'utf8')
+    assert.equal(await readFile(join(root, 'versions/v1/guide/install.md'), 'utf8'), original)
+    await readFile(join(root, 'versions/v1/guide/images/install.svg'))
+    await writeFile(join(root, 'docs/guide/install.md'), original.replace('title: 安装', 'title: 新版安装'))
+    await writeFile(join(root, 'canofold.config.ts'), `export default {
+      versions: [
+        { id: 'v2', label: '2.x', docsDir: 'docs', base: '/' },
+        { id: 'v1', label: '1.x', docsDir: 'versions/v1', base: '/v1/', status: 'archived' }
+      ]
+    }`)
+    run(['check'])
+    run(['build'])
+    const current = await readFile(join(root, '.canofold/dist/guide/install/index.html'), 'utf8')
+    const historical = await readFile(join(root, '.canofold/dist/v1/guide/install/index.html'), 'utf8')
+    assert.match(current, /新版安装/)
+    assert.doesNotMatch(historical, /新版安装/)
+    assert.match(current, /2\.x/)
+    assert.match(historical, /1\.x/)
+    await readFile(join(root, '.canofold/dist/v1/guide/install/images/install.svg'))
+    assert.equal(await readFile(join(root, 'versions/v1/guide/install.md'), 'utf8'), original)
+    console.log('PASS: check/build, rendered Tabs/image/code, direct-array versions and independent snapshots')
   } finally {
     await rm(root, { recursive: true, force: true })
   }
